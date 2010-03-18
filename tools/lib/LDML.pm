@@ -6,6 +6,7 @@ use 5.010;
 use strict;
 use warnings;
 use utf8;
+use namespace::autoclean;
 
 use Carp ();
 use Data::Dumper;
@@ -38,15 +39,17 @@ has 'document' => (
 );
 
 has 'version' => (
-    is         => 'ro',
-    isa        => 'Str',
-    lazy_build => 1,
+    is      => 'ro',
+    isa     => 'Str',
+    lazy    => 1,
+    builder => '_build_version',
 );
 
 has 'generation_date' => (
-    is         => 'ro',
-    isa        => 'Str',
-    lazy_build => 1,
+    is      => 'ro',
+    isa     => 'Str',
+    lazy    => 1,
+    builder => '_build_generation_date',
 );
 
 has 'language' => (
@@ -108,13 +111,11 @@ for my $thing (
         name   => 'day',
         length => 7,
         order  => [qw( mon tue wed thu fri sat sun )],
-    },
-    {
+    }, {
         name   => 'month',
         length => 12,
         order  => [ 1 .. 12 ],
-    },
-    {
+    }, {
         name   => 'quarter',
         length => 4,
         order  => [ 1 .. 4 ],
@@ -124,11 +125,14 @@ for my $thing (
         for my $size (qw( wide abbreviated narrow )) {
             my $name = $thing->{name};
 
-            my $attr = $name . q{_} . $context . q{_} . $size;
+            my $attr         = $name . q{_} . $context . q{_} . $size;
+            my $builder_name = '_build_' . $attr;
+
             has $attr => (
-                is         => 'ro',
-                isa        => 'ArrayRef',
-                lazy_build => 1,
+                is      => 'ro',
+                isa     => 'ArrayRef',
+                lazy    => 1,
+                builder => $builder_name,
             );
 
             my $required_length = $thing->{length};
@@ -145,12 +149,15 @@ for my $thing (
             my $builder = sub {
                 my $self = shift;
 
-                my $vals
-                    = $self->_find_preferred_values(
+                my $vals = $self->_find_preferred_values(
                     ( scalar $self->_calendar_node()->findnodes($path) ),
                     'type',
                     $thing->{order},
-                    );
+                );
+
+                $self->_fill_from_local_vals( $path, $vals, $thing->{order} )
+                    unless @{$vals} == $thing->{length}
+                        && all {defined} @{$vals};
 
                 $self->_fill_from_parent( $attr, $vals, $thing->{length} )
                     unless @{$vals} == $thing->{length}
@@ -170,7 +177,7 @@ for my $thing (
                 return $vals;
             };
 
-            __PACKAGE__->meta()->add_method( '_build_' . $attr => $builder );
+            __PACKAGE__->meta()->add_method( $builder_name => $builder );
         }
     }
 }
@@ -182,12 +189,15 @@ for my $size (
     [ abbreviated => 'Abbr' ],
     [ narrow      => 'Narrow' ]
     ) {
+
     my $attr = 'era_' . $size->[0];
+    my $builder_name = '_build_' . $attr;
 
     has $attr => (
-        is         => 'ro',
-        isa        => 'ArrayRef',
-        lazy_build => 1,
+        is      => 'ro',
+        isa     => 'ArrayRef',
+        lazy    => 1,
+        builder => $builder_name,
     );
 
     my $path = (
@@ -217,17 +227,20 @@ for my $size (
         return $vals;
     };
 
-    __PACKAGE__->meta()->add_method( '_build_' . $attr => $builder );
+    __PACKAGE__->meta()->add_method( $builder_name => $builder );
 }
 
 for my $type (qw( date time )) {
     for my $length (qw( full long medium short )) {
+
         my $attr = $type . q{_format_} . $length;
+        my $builder_name = '_build_' . $attr;
 
         has $attr => (
-            is         => 'ro',
-            isa        => 'Maybe[Str]',
-            lazy_build => 1,
+            is      => 'ro',
+            isa     => 'Str',
+            lazy    => 1,
+            builder => $builder_name,
         );
 
         my $path = (
@@ -244,169 +257,182 @@ for my $type (qw( date time )) {
             return $self->_find_one_node_text(
                 $path,
                 $self->_calendar_node(),
-            );
+            ) // $self->_fill_from_parent($attr);
         };
 
-        __PACKAGE__->meta()->add_method( '_build_' . $attr => $builder );
+        __PACKAGE__->meta()->add_method( $builder_name => $builder );
     }
 }
 
 has 'default_date_format_length' => (
     is      => 'ro',
-    isa     => 'Maybe[Str]',
+    isa     => 'Str',
     lazy    => 1,
     default => sub {
         $_[0]->_find_one_node_attribute(
             'dateFormats/default',
             $_[0]->_calendar_node(),
             'choice'
-        );
+        ) // $_[0]->_fill_from_parent('default_date_format_length');
     },
 );
 
 has 'default_time_format_length' => (
     is      => 'ro',
-    isa     => 'Maybe[Str]',
+    isa     => 'Str',
     lazy    => 1,
     default => sub {
         $_[0]->_find_one_node_attribute(
             'timeFormats/default',
             $_[0]->_calendar_node(),
             'choice'
-        );
+        ) // $_[0]->_fill_from_parent('default_time_format_length');
     },
 );
 
 has 'am_pm_abbreviated' => (
-    is         => 'ro',
-    isa        => 'ArrayRef',
-    lazy_build => 1,
+    is      => 'ro',
+    isa     => 'ArrayRef',
+    lazy    => 1,
+    builder => '_build_am_pm_abbreviated',
 );
 
 has 'datetime_format' => (
-    is         => 'ro',
-    isa        => 'Maybe[Str]',
-    lazy_build => 1,
+    is      => 'ro',
+    isa     => 'Str',
+    lazy    => 1,
+    builder => '_build_datetime_format',
 );
 
 has '_available_formats' => (
-    is         => 'ro',
-    isa        => 'HashRef[Str]',
-    lazy_build => 1,
+    is      => 'ro',
+    isa     => 'HashRef[Str]',
+    lazy    => 1,
+    builder => '_build_available_formats',
 );
 
 has 'merged_available_formats' => (
-    is         => 'ro',
-    isa        => 'HashRef[Str]',
-    lazy_build => 1,
+    is      => 'ro',
+    isa     => 'HashRef[Str]',
+    lazy    => 1,
+    builder => '_build_merged_available_formats',
 );
 
 has 'default_interval_format' => (
-    is         => 'ro',
-    isa        => 'Maybe[Str]',
-    lazy_build => 1,
+    is      => 'ro',
+    isa     => 'Str',
+    lazy    => 1,
+    builder => '_build_default_interval_format',
 );
 
-has 'interval_formats' => (
-    is         => 'ro',
-    isa        => 'HashRef[HashRef[Str]]',
-    lazy_build => 1,
+has '_interval_formats' => (
+    is      => 'ro',
+    isa     => 'HashRef[HashRef[Str]]',
+    lazy    => 1,
+    builder => '_build_interval_formats',
+);
+
+has 'merged_interval_formats' => (
+    is      => 'ro',
+    isa     => 'HashRef[HashRef[Str]]',
+    lazy    => 1,
+    builder => '_build_merged_interval_formats',
 );
 
 has '_field_names' => (
-    is         => 'ro',
-    isa        => 'HashRef[HashRef[Str]]',
-    lazy_build => 1,
+    is      => 'ro',
+    isa     => 'HashRef[HashRef[Str]]',
+    lazy    => 1,
+    builder => '_build_field_names',
 );
 
 has 'merged_field_names' => (
-    is         => 'ro',
-    isa        => 'HashRef[HashRef[Str]]',
-    lazy_build => 1,
+    is      => 'ro',
+    isa     => 'HashRef[HashRef[Str]]',
+    lazy    => 1,
+    builder => '_build_merged_field_names',
 );
 
-# This is really only built once for all objects
-has '_first_day_of_week_index' => (
-    is         => 'ro',
-    isa        => 'HashRef',
-    lazy_build => 1,
+class_has _FirstDayOfWeekIndex => (
+    is      => 'ro',
+    isa     => 'HashRef',
+    lazy    => 1,
+    builder => '_BuildFirstDayOfWeekIndex',
 );
 
 has 'first_day_of_week' => (
-    is         => 'ro',
-    isa        => 'Int',
-    lazy_build => 1,
+    is      => 'ro',
+    isa     => 'Int',
+    lazy    => 1,
+    builder => '_build_first_day_of_week',
 );
 
 for my $thing (qw( language script territory variant )) {
-    {
-        my $en_attr = q{en_} . $thing;
+    my $en_attr         = q{en_} . $thing;
+    my $en_builder_name = '_build_' . $en_attr;
 
-        has $en_attr => (
-            is         => 'ro',
-            isa        => 'Maybe[Str]',
-            lazy_build => 1,
-        );
+    has $en_attr => (
+        is      => 'ro',
+        isa     => 'Maybe[Str]',
+        lazy    => 1,
+        builder => $en_builder_name,
+    );
 
-        my $en_ldml;
-        my $builder = sub {
-            my $self = shift;
+    my $en_ldml;
+    my $builder = sub {
+        my $self = shift;
 
-            my $val_from_id = $self->$thing();
-            return unless defined $val_from_id;
+        my $val_from_id = $self->$thing();
+        return unless defined $val_from_id;
 
-            $en_ldml
-                ||= ( ref $self )
-                ->new_from_file(
-                $self->source_file()->dir()->file('en.xml') );
+        $en_ldml ||= ( ref $self )
+            ->new_from_file( $self->source_file()->dir()->file('en.xml') );
 
-            my $path
-                = 'localeDisplayNames/'
-                . PL_N($thing) . q{/}
-                . $thing
-                . q{[@type='}
-                . $self->$thing() . q{']};
+        my $path
+            = 'localeDisplayNames/'
+            . PL_N($thing) . q{/}
+            . $thing
+            . q{[@type='}
+            . $self->$thing() . q{']};
 
-            return $en_ldml->_find_one_node_text($path);
-        };
+        return $en_ldml->_find_one_node_text($path);
+    };
 
-        __PACKAGE__->meta()->add_method( '_build_' . $en_attr => $builder );
-    }
+    __PACKAGE__->meta()->add_method( $en_builder_name => $builder );
 
-    {
-        my $native_attr = q{native_} . $thing;
+    my $native_attr         = q{native_} . $thing;
+    my $native_builder_name = '_build_' . $en_attr;
 
-        has $native_attr => (
-            is         => 'ro',
-            isa        => 'Maybe[Str]',
-            lazy_build => 1,
-        );
+    has $native_attr => (
+        is      => 'ro',
+        isa     => 'Maybe[Str]',
+        lazy    => 1,
+        builder => $native_builder_name,
+    );
 
-        my $builder = sub {
-            my $self = shift;
+    $builder = sub {
+        my $self = shift;
 
-            my $val_from_id = $self->$thing();
-            return unless defined $val_from_id;
+        my $val_from_id = $self->$thing();
+        return unless defined $val_from_id;
 
-            my $path
-                = 'localeDisplayNames/'
-                . PL_N($thing) . q{/}
-                . $thing
-                . q{[@type='}
-                . $self->$thing() . q{']};
+        my $path
+            = 'localeDisplayNames/'
+            . PL_N($thing) . q{/}
+            . $thing
+            . q{[@type='}
+            . $self->$thing() . q{']};
 
-            for my $ldml ( $self->_self_and_ancestors() ) {
-                my $native_val = $ldml->_find_one_node_text($path);
+        for my $ldml ( $self->_self_and_ancestors() ) {
+            my $native_val = $ldml->_find_one_node_text($path);
 
-                return $native_val if defined $native_val;
-            }
+            return $native_val if defined $native_val;
+        }
 
-            return;
-        };
+        return;
+    };
 
-        __PACKAGE__->meta()
-            ->add_method( '_build_' . $native_attr => $builder );
-    }
+    __PACKAGE__->meta()->add_method( $native_builder_name => $builder );
 }
 
 sub _build_alias_to {
@@ -747,9 +773,12 @@ sub _build_am_pm_abbreviated {
     my $am = $self->_find_one_node_text( 'am', $self->_calendar_node() );
     my $pm = $self->_find_one_node_text( 'pm', $self->_calendar_node() );
 
-    return [] unless defined $am && defined $pm;
+    my $vals = [ $am, $pm ];
 
-    return [ $am, $pm ];
+    $self->_fill_from_parent( 'am_pm_abbreviated', $vals, 2 )
+        unless all { defined } @{$vals};
+
+    return $vals;
 }
 
 sub _build_datetime_format {
@@ -758,10 +787,10 @@ sub _build_datetime_format {
     return $self->_find_one_node_text(
         'dateTimeFormats/dateTimeFormatLength/dateTimeFormat/pattern',
         $self->_calendar_node()
-    );
+    ) // $self->_fill_from_parent('datetime_format');
 }
 
-sub _build__available_formats {
+sub _build_available_formats {
     my $self = shift;
 
     my @nodes = $self->_calendar_node()
@@ -804,7 +833,7 @@ sub _build_default_interval_format {
     return $self->_find_one_node_text(
         'dateTimeFormats/intervalFormats/intervalFormatFallback',
         $self->_calendar_node()
-    );
+    ) // $self->_fill_from_parent('default_interval_format');
 }
 
 sub _build_interval_formats {
@@ -836,7 +865,26 @@ sub _build_interval_formats {
     return \%formats;
 }
 
-sub _build__field_names {
+sub _build_merged_interval_formats {
+    my $self = shift;
+
+    my %merged_formats;
+
+    for my $ldml ( $self->_self_and_ancestors ) {
+        my $formats = $ldml->_interval_formats();
+
+        for my $field ( keys %{$formats} ) {
+            %{ $merged_formats{$field} } = (
+                %{ $formats->{$field} },
+                %{ $merged_formats{$field} || {} },
+            );
+        }
+    }
+
+    return \%merged_formats;
+}
+
+sub _build_field_names {
     my $self = shift;
 
     my @fields = $self->_calendar_node()->findnodes('fields/field');
@@ -986,13 +1034,76 @@ sub _find_one_node {
     return $nodes[0];
 }
 
+sub _fill_from_local_vals {
+    my $self = shift;
+    my $path = shift;
+    my $val  = shift;
+    my $order = shift;
+
+    my $other_path = $self->_local_inheritance_for($path)
+        or return;
+
+    return if $path eq $other_path;
+
+    my $length = scalar @{$order};
+
+    my $other_val = $self->_find_preferred_values(
+        ( scalar $self->_calendar_node()->findnodes($other_path) ),
+        'type',
+        $order,
+    );
+
+    for my $i ( 0 .. $length - 1 ) {
+        $val->[$i] //= $other_val->[$i];
+    }
+
+    return;
+}
+
+sub _local_inheritance_for {
+    my $self = shift;
+    my $path = shift;
+
+    if ( $path =~ /stand-alone/ ) {
+        $path =~ s/stand-alone/format/;
+    }
+    elsif ( $path =~ /(?:abbreviated|narrow)/ ) {
+        # This isn't well documented (or really documented at all) in the LDML
+        # spec, but the example seem to suggest that for the narrow form, the
+        # format type should "inherit" from the stand-alone type if possible,
+        # rather than the abbreviated type.
+        #
+        # See
+        # http://www.unicode.org/cldr/data/charts/by_type/calendar-gregorian.day.html
+        # for examples of the expected output. Note that the format narrow
+        # days for English are inherited from its stand-alone narrow form, not
+        # the root locale.
+        if ( $path =~ /\Q[\@type='format']\E.+\Q[\@type='narrow']/ ) {
+            $path =~ s/format/stand-alone/;
+        }
+        else {
+            # It seems like the quarters should just inherit up the locale
+            # inheritance chain, rather than from the next biggest size. See
+            # http://www.unicode.org/cldr/data/charts/by_type/calendar-gregorian.quarter.html
+            # for an example. Note that the English format narrow quarter is
+            # "1", not "Q1".
+            return if $path =~ /quarterContext.+\Q[\@type='narrow']/;
+
+            $path =~ s/abbreviated/wide/;
+            $path =~ s/narrow/abbreviated/;
+        }
+    }
+
+    return $path;
+}
+
 {
     our $check_recursion;
 
     sub _fill_from_parent {
         my $self   = shift;
         my $attr   = shift;
-        my $vals   = shift;
+        my $val    = shift;
         my $length = shift;
 
         local $check_recursion = {}
@@ -1003,13 +1114,18 @@ sub _find_one_node {
         for my $parent ( $self->_all_parents() ) {
             next if $check_recursion->{ $parent->id() };
 
-            my $parent_vals = $parent->$attr();
+            my $parent_val = $parent->$attr();
 
-            for my $i ( 0 .. $length - 1 ) {
-                $vals->[$i] //= $parent_vals->[$i];
+            if ( ref $val ) {
+                for my $i ( 0 .. $length - 1 ) {
+                    $val->[$i] //= $parent_val->[$i];
+                }
+
+                return if ( grep { defined } @{$val} ) == $length;
             }
-
-            return if ( grep { defined } @{$vals} ) == $length;
+            else {
+                return $parent_val if defined $parent_val;
+            }
         }
     }
 }
@@ -1020,14 +1136,9 @@ sub _find_one_node {
         map { $_ => $x++ } qw( mon tue wed thu fri sat sun );
     };
 
-    my %index;
-
     my $file_name = 'supplementalData.xml';
 
-    sub _build__first_day_of_week_index {
-        return \%index
-            if keys %index;
-
+    sub _BuildFirstDayOfWeekIndex {
         my $self = shift;
 
         my $file;
@@ -1047,6 +1158,7 @@ sub _find_one_node {
 
         my @nodes = $doc->findnodes('supplementalData/weekData/firstDay');
 
+        my %index;
         for my $node (@nodes) {
             my $day_num = $days{ $node->getAttribute('day') };
 
@@ -1059,7 +1171,5 @@ sub _find_one_node {
 }
 
 __PACKAGE__->meta()->make_immutable();
-no Moose;
-no Moose::Util::TypeConstraints;
 
 1;
