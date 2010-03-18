@@ -45,7 +45,7 @@
 # No need to ship this
 \.shipit
 
-t/zd.+
+^cldr-data
 
 \.shipit
 ^MYMETA.yml$
