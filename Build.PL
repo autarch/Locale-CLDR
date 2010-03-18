@@ -6,7 +6,7 @@ use warnings;
 use Module::Build;
 
 Module::Build->new(
-    module_name => 'DateTime::Locale',
+    module_name => 'Locale::CLDR',
     dist_author => 'Dave Rolsky <autarch@urth.org>',
     license     => 'perl',
     requires    => {
