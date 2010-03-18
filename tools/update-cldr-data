@@ -6,8 +6,8 @@ use autodie qw( :all );
 
 use Cwd qw( abs_path );
 use File::chdir;
-use File::Copy qw( move );
 use File::Find::Rule;
+use File::Path qw( rmtree );
 use File::Temp qw( tempdir );
 use LWP::Simple qw( getstore );
 
@@ -19,26 +19,20 @@ my $tempdir = tempdir( CLEANUP => 1 );
 my $file = "$tempdir/core.zip";
 
 my $uri = 'http://unicode.org/Public/cldr/latest/core.zip';
-#my $uri = 'file:///home/autarch/projects/DateTime-Locale/core.zip';
+#my $uri = 'file:///home/autarch/projects/Locale-CLDR/core.zip';
 
 my $rc = getstore( $uri, $file );
 
 die 'Could not get latest core.zip' unless $rc == 0 || $rc == 200;
 
 {
-    local $CWD = $tempdir;
+    local $CWD = $target_dir;
     system( 'unzip', '-qq', $file );
 }
 
-for my $file ( File::Find::Rule->name('*.xml')->in($target_dir) ) {
-    unlink $file;
+for my $dir ( File::Find::Rule->dir()->maxdepth(0)->in($target_dir) ) {
+    rmtree($dir);
 }
-
-for my $file ( File::Find::Rule->name('*.xml')->in("$tempdir/common/main") ) {
-    move( $file => $target_dir );
-}
-
-move( "$tempdir/common/supplemental/supplementalData.xml" => $target_dir );
 
 my $mode = 0644;
 chmod $mode, $_ for File::Find::Rule->file()->in($target_dir);
