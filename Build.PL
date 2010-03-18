@@ -21,8 +21,8 @@ Module::Build->new(
         resources => {
             homepage => 'http://datetime.perl.org/',
             bugtracker =>
-                'http://rt.cpan.org/NoAuth/Bugs.html?Dist=DateTime-Locale',
-            repository => 'http://hg.urth.org/hg/DateTime-Locale',
+                'http://rt.cpan.org/NoAuth/Bugs.html?Dist=Locale-CLDR',
+            repository => 'http://hg.urth.org/hg/Locale-CLDR',
         },
     },
 )->create_build_script;
