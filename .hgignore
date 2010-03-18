@@ -443,3 +443,4 @@ lib/DateTime/Locale/zh_Hant_MO.pm
 lib/DateTime/Locale/zh_Hant_TW.pm
 lib/DateTime/Locale/zu.pm
 lib/DateTime/Locale/zu_ZA.pm
+lib/DateTime/Locale/Catalog.pm
