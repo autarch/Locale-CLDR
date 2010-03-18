@@ -38,7 +38,7 @@ for my $file ( File::Find::Rule->name('*.xml')->in("$tempdir/common/main") ) {
     move( $file => $target_dir );
 }
 
-move( "$tempdir/supplemental/supplementalData.xml" => $target_dir );
+move( "$tempdir/common/supplemental/supplementalData.xml" => $target_dir );
 
 my $mode = 0644;
 chmod $mode, $_ for File::Find::Rule->file()->in($target_dir);
