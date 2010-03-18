@@ -40,7 +40,7 @@
 # Avoid tarballs
 \.(?:tar|tgz|tar\.gz)$
 
-^DateTime-Locale-
+^Locale-CLDR-
 
 # No need to ship this
 \.shipit
