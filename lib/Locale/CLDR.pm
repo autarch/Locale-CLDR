@@ -1,17 +1,17 @@
-package DateTime::Locale;
+package Locale::CLDR;
 
 use strict;
 use warnings;
 
-use 5.006;
+use 5.008001;
 
 # Loading this here isn't necessary, but it makes it easier to catch
 # syntax errors when testing.
-use DateTime::Locale::Base;
-use DateTime::Locale::Catalog;
+use Locale::CLDR::Calendar;
+use Locale::CLDR::Catalog;
 use Params::Validate qw( validate validate_pos SCALAR );
 
-our $VERSION = '0.45';
+our $VERSION = '1.00';
 
 my %Class;
 my %DataForID;

@@ -1,4 +1,4 @@
-use 5.006;
+use 5.008001;
 
 use strict;
 use warnings;
@@ -12,7 +12,7 @@ Module::Build->new(
     requires    => {
         'List::MoreUtils'  => 0,
         'Params::Validate' => '0.91',
-        perl               => 5.006,
+        perl               => 5.008001,
     },
     build_requires     => { 'Module::Build' => 0 },
     sign               => 1,
